@@ -52,10 +52,6 @@ jobs:
       TF_VAR_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       TF_VAR_name_suffix: ${{ vars.NAME_SUFFIX }}
       TF_VAR_budget_contact_emails: ${{ vars.BUDGET_CONTACT_EMAILS }}
-      TF_VAR_vm_admin_ssh_public_key: ${{ vars.VM_ADMIN_SSH_PUBLIC_KEY }}
-      TF_VAR_sql_admin_login: ${{ vars.SQL_ADMIN_LOGIN }}
-      TF_VAR_sql_admin_object_id: ${{ vars.SQL_ADMIN_OBJECT_ID }}
-      TF_VAR_allowed_client_ips: ${{ vars.ALLOWED_CLIENT_IPS || '[]' }}
     defaults:
       run:
         working-directory: landing-zone
@@ -101,10 +97,6 @@ jobs:
       TF_VAR_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       TF_VAR_name_suffix: ${{ vars.NAME_SUFFIX }}
       TF_VAR_budget_contact_emails: ${{ vars.BUDGET_CONTACT_EMAILS }}
-      TF_VAR_vm_admin_ssh_public_key: ${{ vars.VM_ADMIN_SSH_PUBLIC_KEY }}
-      TF_VAR_sql_admin_login: ${{ vars.SQL_ADMIN_LOGIN }}
-      TF_VAR_sql_admin_object_id: ${{ vars.SQL_ADMIN_OBJECT_ID }}
-      TF_VAR_allowed_client_ips: ${{ vars.ALLOWED_CLIENT_IPS || '[]' }}
     defaults:
       run:
         working-directory: landing-zone

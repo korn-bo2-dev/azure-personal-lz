@@ -1,27 +1,28 @@
 # azure-personal-lz
 
-A personal-scale Azure landing zone in Terraform: one subscription, a few
-guardrails, and one of each workload (VM, storage, Key Vault, free Azure SQL)
-on a basic network.
+A personal-scale Azure landing zone in Terraform for one subscription. It sets
+up the guardrails only; workloads are added later as new `.tf` files.
 
 ## Layout
 
 ```
 bootstrap/      run once, locally: Terraform state storage + CI/CD identity (OIDC)
-landing-zone/   everything else, state stored remotely
-  governance.tf     mg-personal, policies (allowed region, no public IPs on NICs), budget alerts
-  platform.tf       rg-platform: Log Analytics (0.5 GB/day cap), activity log export
-  network.tf        rg-network: VNet 10.10.0.0/16, snet-vm, snet-pe, NSGs, Bastion Developer (free)
-  compute.tf        rg-workload: Ubuntu 24.04 VM (B1s, no public IP, 23:00 auto-shutdown)
-  data-services.tf  storage account, Key Vault (RBAC), Azure SQL free offer (Entra ID auth only)
+landing-zone/   remote state
+  governance.tf     mg-personal (with the subscription in it), policies, budget alerts
 ```
+
+Policies assigned on `mg-personal`:
+
+- Allowed locations (resources and resource groups): Australia East only.
+- Network interfaces must not have public IPs.
+
+The budget sends alerts at 50% and 90% of actual spend and at 100% forecast.
 
 ## Expected cost
 
-Close to zero on a new account (B1s is in the 12-month free offer). The SQL
-database uses the free offer and auto-pauses when the monthly free limit is
-used, so it never bills. Main paid items after the free year: the VM (~$8/mo
-if left on 24/7) and its disk (~$1.50/mo). The budget alert defaults to 30.
+Effectively zero. Management groups, policies and budgets are free. The only
+billable things are bootstrap's state storage account and identity, which cost
+cents per month.
 
 ## First-time setup
 
@@ -69,23 +70,11 @@ they are repository **variables** (Settings > Secrets and variables > Actions > 
 | `AZURE_SUBSCRIPTION_ID` | your subscription ID |
 | `NAME_SUFFIX` | same as in tfvars |
 | `BUDGET_CONTACT_EMAILS` | HCL list, e.g. `["you@example.com"]` |
-| `VM_ADMIN_SSH_PUBLIC_KEY` | your `.pub` key contents |
-| `SQL_ADMIN_LOGIN` | your UPN |
-| `SQL_ADMIN_OBJECT_ID` | `az ad signed-in-user show --query id -o tsv` |
-| `ALLOWED_CLIENT_IPS` | optional, e.g. `["203.0.113.10"]` |
 
 Also create a `prod` environment (Settings > Environments) and add yourself as
 a required reviewer, so every apply waits for your click.
 
-## Connecting to things
+## Adding a workload later
 
-- VM: Portal > vm-personal > Connect > Bastion, SSH with your key.
-- SQL: sign in with your Entra ID account (add your home IP to
-  `allowed_client_ips`), or from the VM via the service endpoint.
-- Storage / Key Vault: Entra ID RBAC, already granted to you and the VM.
-
-## Later hardening (optional, costs a little)
-
-- Private endpoints for SQL, storage and Key Vault in `snet-pe`, plus private DNS zones.
-- Disable shared keys on storage accounts (`shared_access_key_enabled = false`).
-- Defender for Cloud plans, diagnostic settings per resource.
+Add a new `.tf` file in `landing-zone/` (for example `sql.tf` with its own
+resource group). The policies and pipeline already cover it.
