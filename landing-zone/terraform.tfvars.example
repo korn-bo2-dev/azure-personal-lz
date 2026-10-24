@@ -1,0 +1,8 @@
+subscription_id         = "00000000-0000-0000-0000-000000000000"
+name_suffix             = "bjx01" # same as bootstrap
+budget_amount           = 30
+budget_contact_emails   = ["you@example.com"]
+vm_admin_ssh_public_key = "ssh-ed25519 AAAA... you@laptop"
+sql_admin_login         = "you@yourtenant.onmicrosoft.com"
+sql_admin_object_id     = "00000000-0000-0000-0000-000000000000" # az ad signed-in-user show --query id -o tsv
+allowed_client_ips      = [] # e.g. ["203.0.113.10"]
