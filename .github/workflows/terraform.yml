@@ -1,0 +1,122 @@
+name: terraform
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # OIDC to Azure
+  pull-requests: write
+
+concurrency:
+  group: terraform-landing-zone
+  cancel-in-progress: false
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_VERSION: "1.9.8"
+
+jobs:
+  # Runs without Azure access: formatting and static validation of every root.
+  validate:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        root: [bootstrap, landing-zone]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      - run: terraform fmt -check -recursive -diff
+        working-directory: ${{ matrix.root }}
+      - run: terraform init -backend=false -input=false
+        working-directory: ${{ matrix.root }}
+      - run: terraform validate
+        working-directory: ${{ matrix.root }}
+
+  # Needs the repository variables from the README; skipped until they exist.
+  plan:
+    needs: validate
+    if: github.event_name == 'pull_request' && vars.AZURE_CLIENT_ID != ''
+    runs-on: ubuntu-latest
+    env:
+      ARM_USE_OIDC: "true"
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_name_suffix: ${{ vars.NAME_SUFFIX }}
+      TF_VAR_budget_contact_emails: ${{ vars.BUDGET_CONTACT_EMAILS }}
+      TF_VAR_vm_admin_ssh_public_key: ${{ vars.VM_ADMIN_SSH_PUBLIC_KEY }}
+      TF_VAR_sql_admin_login: ${{ vars.SQL_ADMIN_LOGIN }}
+      TF_VAR_sql_admin_object_id: ${{ vars.SQL_ADMIN_OBJECT_ID }}
+      TF_VAR_allowed_client_ips: ${{ vars.ALLOWED_CLIENT_IPS || '[]' }}
+    defaults:
+      run:
+        working-directory: landing-zone
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      - name: terraform init
+        run: >-
+          terraform init -input=false
+          -backend-config="resource_group_name=rg-tfstate"
+          -backend-config="storage_account_name=sttfstate${{ vars.NAME_SUFFIX }}"
+          -backend-config="container_name=tfstate"
+      - run: terraform plan -input=false -lock-timeout=5m -out=tfplan
+      - run: terraform show -no-color tfplan > plan.txt
+      - name: Post plan summary
+        run: |
+          {
+            echo '### Terraform plan'
+            echo '```'
+            grep -E '^(Plan:|No changes)' plan.txt || true
+            echo '```'
+            echo '<details><summary>Full plan</summary>'
+            echo
+            echo '```'
+            head -c 60000 plan.txt
+            echo '```'
+            echo '</details>'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Applies on merge to main. The "prod" environment can require your approval.
+  apply:
+    needs: validate
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.AZURE_CLIENT_ID != ''
+    runs-on: ubuntu-latest
+    environment: prod
+    env:
+      ARM_USE_OIDC: "true"
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_name_suffix: ${{ vars.NAME_SUFFIX }}
+      TF_VAR_budget_contact_emails: ${{ vars.BUDGET_CONTACT_EMAILS }}
+      TF_VAR_vm_admin_ssh_public_key: ${{ vars.VM_ADMIN_SSH_PUBLIC_KEY }}
+      TF_VAR_sql_admin_login: ${{ vars.SQL_ADMIN_LOGIN }}
+      TF_VAR_sql_admin_object_id: ${{ vars.SQL_ADMIN_OBJECT_ID }}
+      TF_VAR_allowed_client_ips: ${{ vars.ALLOWED_CLIENT_IPS || '[]' }}
+    defaults:
+      run:
+        working-directory: landing-zone
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      - name: terraform init
+        run: >-
+          terraform init -input=false
+          -backend-config="resource_group_name=rg-tfstate"
+          -backend-config="storage_account_name=sttfstate${{ vars.NAME_SUFFIX }}"
+          -backend-config="container_name=tfstate"
+      - run: terraform apply -input=false -lock-timeout=5m -auto-approve
