@@ -44,7 +44,38 @@ terraform apply
 
 Run the first landing-zone apply yourself: creating the management group and
 moving the subscription needs your own tenant permissions. After that, grant
-the CI/CD identity Owner on `mg-personal` and let the pipeline take over.
+the CI/CD identity Owner on `mg-personal` and let the pipeline take over:
+
+```sh
+az role assignment create --assignee <cicd_client_id> --role Owner \
+  --scope /providers/Microsoft.Management/managementGroups/mg-personal
+```
+
+## GitHub Actions
+
+`.github/workflows/terraform.yml` runs:
+
+- **validate** on every PR and push: `fmt -check` and `validate` for both roots. Needs no Azure access.
+- **plan** on PRs, with the plan in the job summary.
+- **apply** on merge to `main`, in the `prod` environment.
+
+Plan and apply are skipped until these exist. None of them are secrets, so
+they are repository **variables** (Settings > Secrets and variables > Actions > Variables):
+
+| Variable | Value |
+|---|---|
+| `AZURE_CLIENT_ID` | bootstrap output `cicd_client_id` |
+| `AZURE_TENANT_ID` | bootstrap output `tenant_id` |
+| `AZURE_SUBSCRIPTION_ID` | your subscription ID |
+| `NAME_SUFFIX` | same as in tfvars |
+| `BUDGET_CONTACT_EMAILS` | HCL list, e.g. `["you@example.com"]` |
+| `VM_ADMIN_SSH_PUBLIC_KEY` | your `.pub` key contents |
+| `SQL_ADMIN_LOGIN` | your UPN |
+| `SQL_ADMIN_OBJECT_ID` | `az ad signed-in-user show --query id -o tsv` |
+| `ALLOWED_CLIENT_IPS` | optional, e.g. `["203.0.113.10"]` |
+
+Also create a `prod` environment (Settings > Environments) and add yourself as
+a required reviewer, so every apply waits for your click.
 
 ## Connecting to things
 

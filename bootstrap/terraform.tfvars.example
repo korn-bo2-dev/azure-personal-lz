@@ -1,2 +1,14 @@
 subscription_id = "00000000-0000-0000-0000-000000000000"
 name_suffix     = "bjx01"
+
+# GitHub Actions OIDC: PR plans and applies from the "prod" environment.
+federated_credentials = {
+  github-pr = {
+    issuer  = "https://token.actions.githubusercontent.com"
+    subject = "repo:korn-bo2-dev/azure-personal-lz:pull_request"
+  }
+  github-prod = {
+    issuer  = "https://token.actions.githubusercontent.com"
+    subject = "repo:korn-bo2-dev/azure-personal-lz:environment:prod"
+  }
+}
