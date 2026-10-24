@@ -1,4 +1,9 @@
-subscription_id       = "00000000-0000-0000-0000-000000000000"
-name_suffix           = "bjx01" # same as bootstrap
-budget_amount         = 30
-budget_contact_emails = ["you@example.com"]
+platform_subscription_id = "00000000-0000-0000-0000-000000000000" # the one bootstrap ran in
+prod_subscription_id     = "00000000-0000-0000-0000-000000000000"
+dev_subscription_id      = "00000000-0000-0000-0000-000000000000"
+security_contact_email   = "you@example.com"
+
+# Optional overrides
+# budget_amounts               = { platform = 30, prod = 30, dev = 20 }
+# log_analytics_daily_quota_gb = 1
+# defender_plans_enabled       = false

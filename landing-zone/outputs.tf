@@ -1,3 +1,7 @@
-output "management_group_id" {
-  value = azurerm_management_group.personal.id
+output "management_group_ids" {
+  value = module.alz.management_group_resource_ids
+}
+
+output "log_analytics_workspace_id" {
+  value = module.management.resource_id
 }

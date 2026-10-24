@@ -18,7 +18,7 @@ concurrency:
 
 env:
   TF_IN_AUTOMATION: "true"
-  TF_VERSION: "1.9.8"
+  TF_VERSION: "1.16.6"
 
 jobs:
   # Runs without Azure access: formatting and static validation of every root.
@@ -49,9 +49,10 @@ jobs:
       ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      TF_VAR_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      TF_VAR_name_suffix: ${{ vars.NAME_SUFFIX }}
-      TF_VAR_budget_contact_emails: ${{ vars.BUDGET_CONTACT_EMAILS }}
+      TF_VAR_platform_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_prod_subscription_id: ${{ vars.PROD_SUBSCRIPTION_ID }}
+      TF_VAR_dev_subscription_id: ${{ vars.DEV_SUBSCRIPTION_ID }}
+      TF_VAR_security_contact_email: ${{ vars.SECURITY_CONTACT_EMAIL }}
     defaults:
       run:
         working-directory: landing-zone
@@ -94,9 +95,10 @@ jobs:
       ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      TF_VAR_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      TF_VAR_name_suffix: ${{ vars.NAME_SUFFIX }}
-      TF_VAR_budget_contact_emails: ${{ vars.BUDGET_CONTACT_EMAILS }}
+      TF_VAR_platform_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_prod_subscription_id: ${{ vars.PROD_SUBSCRIPTION_ID }}
+      TF_VAR_dev_subscription_id: ${{ vars.DEV_SUBSCRIPTION_ID }}
+      TF_VAR_security_contact_email: ${{ vars.SECURITY_CONTACT_EMAIL }}
     defaults:
       run:
         working-directory: landing-zone
