@@ -1,3 +1,0 @@
-resource_group_name  = "rg-tfstate"
-storage_account_name = "sttfstate<suffix>"
-container_name       = "tfstate"

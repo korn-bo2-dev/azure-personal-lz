@@ -1,80 +1,106 @@
 # azure-personal-lz
 
-A personal-scale Azure landing zone in Terraform for one subscription. It sets
-up the guardrails only; workloads are added later as new `.tf` files.
+An enterprise-style [Azure Landing Zone](https://aka.ms/alz) (Cloud Adoption
+Framework) in Terraform, built on the Azure Verified Modules ALZ pattern
+(`Azure/avm-ptn-alz` + the ALZ reference library), sized for three
+subscriptions in Australia East.
 
-## Layout
+## Architecture
 
 ```
-bootstrap/      run once, locally: Terraform state storage + CI/CD identity (OIDC)
-landing-zone/   remote state
-  governance.tf     mg-personal (with the subscription in it), policies, budget alerts
+Tenant Root Group
+└── alz                     Azure Landing Zones (intermediate root, ~ALZ root policies)
+    ├── platform
+    │   ├── management      sub-platform-001: Log Analytics, DCRs, AMA identity, TF state
+    │   ├── connectivity    (empty for now: hub network comes later)
+    │   ├── identity
+    │   └── security
+    ├── landingzones
+    │   ├── corp            sub-prod-001, sub-dev-001
+    │   ├── online
+    │   └── local
+    ├── sandbox
+    └── decommissioned
 ```
 
-Policies assigned on `mg-personal`:
+```
+bootstrap/      run once, locally: TF state storage + CI/CD identity (OIDC), in the platform sub
+landing-zone/
+  main.tf         ALZ management groups + policies (avm-ptn-alz), management resources (avm-ptn-alz-management)
+  budgets.tf      monthly budget + alerts on each subscription
+  cicd.tf         grants the CI/CD identity Owner on the `alz` management group
+```
 
-- Allowed locations (resources and resource groups): Australia East only.
-- Network interfaces must not have public IPs.
+## Cost
 
-The budget sends alerts at 50% and 90% of actual spend and at 100% forecast.
+| Item | Monthly (rough) |
+|---|---|
+| Management groups, policies, budgets | free |
+| Log Analytics (capped at 1 GB/day, 30-day retention) | usually a few dollars; worst case ~US$90 at the cap |
+| TF state storage | cents |
+| Defender for Cloud paid plans | **off** (`defender_plans_enabled = false`) |
+| DDoS Network Protection (~US$3,000) | **off** (policy set to DoNotEnforce) |
+| Hub network / Azure Firewall (Basic ~US$300, Standard ~US$900+) | not deployed yet |
 
-## Expected cost
+Policy assignments set to `DoNotEnforce` so they don't deploy paid features or
+fail without a hub: `Deploy-MDFC-*` and `Deploy-MDEndpoints*` (until
+`defender_plans_enabled = true`), `Enable-DDoS-VNET`, and `Deploy-Private-DNS-Zones`
+(until connectivity exists). Everything else follows the ALZ defaults. Note
+`Deploy-VM-Backup` in landing zones will create Recovery Services vaults for VMs.
 
-Effectively zero. Management groups, policies and budgets are free. The only
-billable things are bootstrap's state storage account and identity, which cost
-cents per month.
+## Prerequisites
 
-## First-time setup
+- Terraform >= 1.12, Azure CLI, Git.
+- Three subscriptions under the same billing account: `sub-platform-001`
+  (where bootstrap ran), `sub-prod-001`, `sub-dev-001`.
+- Your account must be able to manage the tenant root management group. As a
+  Global Administrator: Entra ID > Properties > **Access management for Azure
+  resources = Yes**, then sign out and in again (`az logout; az login`). You
+  can turn it off again after the first apply.
 
-Prereqs: Terraform >= 1.9, Azure CLI, `az login` as the subscription Owner.
+## First-time deployment
 
 ```sh
-# 1. Bootstrap (local state)
-cd bootstrap
-cp terraform.tfvars.example terraform.tfvars   # fill in, never commit
-terraform init && terraform apply
+# bootstrap (already done if rg-tfstate exists)
+cd bootstrap && terraform init && terraform apply
 
-# 2. Landing zone (remote state)
+# landing zone
 cd ../landing-zone
-cp backend.hcl.example backend.hcl             # use the bootstrap output
-cp terraform.tfvars.example terraform.tfvars   # fill in, never commit
-terraform init -backend-config=backend.hcl
+cp terraform.tfvars.example terraform.tfvars   # fill in the three subscription IDs + email
+terraform init \
+  -backend-config="resource_group_name=rg-tfstate" \
+  -backend-config="storage_account_name=sttfstate<suffix>" \
+  -backend-config="container_name=tfstate"
 terraform plan
 terraform apply
 ```
 
-Run the first landing-zone apply yourself: creating the management group and
-moving the subscription needs your own tenant permissions. After that, grant
-the CI/CD identity Owner on `mg-personal` and let the pipeline take over:
-
-```sh
-az role assignment create --assignee <cicd_client_id> --role Owner \
-  --scope /providers/Microsoft.Management/managementGroups/mg-personal
-```
+The first apply creates several hundred resources (policy definitions,
+assignments, role assignments) and can take 20-40 minutes. If it fails on a
+transient Azure error, run `terraform apply` again.
 
 ## GitHub Actions
 
-`.github/workflows/terraform.yml` runs:
-
-- **validate** on every PR and push: `fmt -check` and `validate` for both roots. Needs no Azure access.
-- **plan** on PRs, with the plan in the job summary.
-- **apply** on merge to `main`, in the `prod` environment.
-
-Plan and apply are skipped until these exist. None of them are secrets, so
-they are repository **variables** (Settings > Secrets and variables > Actions > Variables):
+`.github/workflows/terraform.yml` runs **validate** on every PR/push, **plan**
+on PRs and **apply** on merge to `main` (in the `prod` environment). Plan and
+apply are skipped until these repository **variables** exist (Settings >
+Secrets and variables > Actions > Variables; none are secrets):
 
 | Variable | Value |
 |---|---|
 | `AZURE_CLIENT_ID` | bootstrap output `cicd_client_id` |
 | `AZURE_TENANT_ID` | bootstrap output `tenant_id` |
-| `AZURE_SUBSCRIPTION_ID` | your subscription ID |
-| `NAME_SUFFIX` | same as in tfvars |
-| `BUDGET_CONTACT_EMAILS` | HCL list, e.g. `["you@example.com"]` |
+| `AZURE_SUBSCRIPTION_ID` | platform subscription ID |
+| `PROD_SUBSCRIPTION_ID` | prod subscription ID |
+| `DEV_SUBSCRIPTION_ID` | dev subscription ID |
+| `NAME_SUFFIX` | bootstrap `name_suffix` |
+| `SECURITY_CONTACT_EMAIL` | your email |
 
-Also create a `prod` environment (Settings > Environments) and add yourself as
-a required reviewer, so every apply waits for your click.
+Also create a `prod` environment (Settings > Environments) with yourself as a
+required reviewer.
 
-## Adding a workload later
+## Next steps
 
-Add a new `.tf` file in `landing-zone/` (for example `sql.tf` with its own
-resource group). The policies and pipeline already cover it.
+- **Connectivity:** hub VNet + Azure Firewall (or Virtual WAN) and private DNS
+  zones in the platform (or a dedicated connectivity) subscription, using the AVM ALZ connectivity pattern modules.
+- **Workloads:** spoke VNets and resources in the prod/dev subscriptions.
