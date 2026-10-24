@@ -70,7 +70,7 @@ resource "azurerm_role_assignment" "cicd_state" {
   principal_id         = azurerm_user_assigned_identity.cicd.principal_id
 }
 
-# Owner is needed because the landing zone assigns roles (Key Vault RBAC).
+# Owner is needed to manage policy assignments and, later, role assignments.
 # It is granted on the subscription here; after the first landing-zone apply
 # creates the management group, grant it there too (see README).
 resource "azurerm_role_assignment" "cicd_owner" {

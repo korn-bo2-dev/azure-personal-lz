@@ -6,10 +6,6 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 4.50"
     }
-    azapi = {
-      source  = "Azure/azapi"
-      version = "~> 2.0"
-    }
   }
 
   # Filled in with -backend-config=backend.hcl (see backend.hcl.example).
@@ -23,11 +19,5 @@ provider "azurerm" {
   subscription_id     = var.subscription_id
   storage_use_azuread = true
 
-  features {
-    key_vault {
-      purge_soft_delete_on_destroy = true
-    }
-  }
+  features {}
 }
-
-provider "azapi" {}
